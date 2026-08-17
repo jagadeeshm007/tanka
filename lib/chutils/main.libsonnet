@@ -23,24 +23,44 @@ local vct = chi.spec.templates.volumeClaimTemplates;
   // non-root user, dropping all Linux capabilities, blocking privilege escalation
   // and applying the runtime default seccomp profile is the CIS-aligned baseline.
   // Kept as a public field so callers can inspect or override it.
+  //
+  // NOTE on non-root placement: runAsNonRoot/runAsUser live on the *container*, not
+  // the pod. This keeps the long-running server guaranteed non-root while still
+  // allowing a one-shot root initContainer to fix volume ownership (a pod-level
+  // runAsNonRoot:true would forbid that init container). fsGroup stays at pod level.
   securityContext:: {
     pod: {
-      runAsNonRoot: true,
-      runAsUser: 101,
-      runAsGroup: 101,
       fsGroup: 101,
-      // Only chown volume contents when the top-level dir mismatches — avoids
-      // an expensive recursive chown on every restart of a large data volume.
       fsGroupChangePolicy: 'OnRootMismatch',
       seccompProfile: { type: 'RuntimeDefault' },
     },
+    // Applied to the main clickhouse-server container — the process that matters.
     container: {
+      runAsNonRoot: true,
+      runAsUser: 101,
+      runAsGroup: 101,
       allowPrivilegeEscalation: false,
       capabilities: { drop: ['ALL'] },
       // readOnlyRootFilesystem intentionally left false: the operator regenerates
       // config under /etc/clickhouse-server and the server writes format schemas
       // outside the data volume. Revisit with explicit emptyDir mounts if required.
     },
+  },
+
+  // Root, one-shot init container that makes the data volume writable by uid 101.
+  // Needed because Minikube's hostpath provisioner does not reliably honor fsGroup;
+  // on cloud storage classes that do honor it this is a harmless no-op.
+  volumePermissionsInit(dataVolume='data'):: {
+    name: 'volume-permissions',
+    image: 'busybox:1.36',
+    command: ['sh', '-c', 'chown -R 101:101 /var/lib/clickhouse'],
+    securityContext: {
+      runAsUser: 0,
+      runAsNonRoot: false,
+      allowPrivilegeEscalation: false,
+      capabilities: { drop: ['ALL'], add: ['CHOWN'] },
+    },
+    volumeMounts: [{ name: dataVolume, mountPath: '/var/lib/clickhouse' }],
   },
 
   // ── Probes ──────────────────────────────────────────────────────────────────
@@ -127,6 +147,7 @@ local vct = chi.spec.templates.volumeClaimTemplates;
 
     local spec =
       {
+        initContainers: [$.volumePermissionsInit(std.get(params, 'dataVolume', 'data'))],
         containers: [ctr],
         securityContext: sc.pod,
       }
