@@ -1,0 +1,8 @@
+directory: charts
+repositories:
+  - name: altinity
+    url: https://altinity.github.io/clickhouse-operator
+requires:
+  - chart: altinity/altinity-clickhouse-operator
+    version: 0.27.3
+version: 1

@@ -1,0 +1,19 @@
+# Tooling / IDE
+.bin
+.idea
+.vscode
+.cursor
+.claude
+
+# Never commit secrets or rendered manifests containing them
+secret.jsonnet
+*.secret.jsonnet
+secrets/
+*-credentials.yaml
+
+# Vendored Helm charts are re-fetchable via `tk tool charts vendor`
+environments/**/charts/
+
+# Local kubeconfig
+kubeconfig
+*.kubeconfig

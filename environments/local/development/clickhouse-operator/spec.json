@@ -1,0 +1,14 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "metadata": {
+    "name": "environments/local/development/clickhouse-operator"
+  },
+  "spec": {
+    "namespace": "clickhouse-operator",
+    "applyStrategy": "server",
+    "contextNames": ["minikube"],
+    "resourceDefaults": {},
+    "expectVersions": {}
+  }
+}
